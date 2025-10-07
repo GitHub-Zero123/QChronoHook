@@ -114,7 +114,7 @@
                                 "$slider_box_locked_layout": "common.slider_button_locked_layout",
                                 "$slider_box_size": [
                                     12,
-                                    23
+                                    "128%+0px"
                                 ],
                                 "$slider_direction": "horizontal",
                                 "$slider_name|default": "netease_slider_name",

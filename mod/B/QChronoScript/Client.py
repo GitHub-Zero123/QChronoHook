@@ -11,8 +11,10 @@ def UiInitFinished(_={}):
     if Static._UI_INITED:
         return
     Static._UI_INITED = True
-    comp = clientApi.GetEngineCompFactory().CreateTextNotifyClient(levelId)
-    comp.SetLeftCornerNotify("时间变速MOD已加载，使用原版时钟打开编辑界面")
+    compFactory = clientApi.GetEngineCompFactory()
+    compFactory.CreateGame(levelId).AddTimer(2.0,
+    lambda: compFactory.CreateTextNotifyClient(levelId).SetLeftCornerNotify("§l§a时间变速MOD已加载，使用原版时钟打开编辑界面。")
+    )
 
 @ScreenNodeWrapper.autoRegister("QChronoEditer.main")
 class ChronoEditUI(ScreenNodeWrapper):
@@ -32,7 +34,7 @@ class ChronoEditUI(ScreenNodeWrapper):
             if newSpeed != self.mSpeed:
                 UPDATE_GAME_SPEED(newSpeed)
                 comp = clientApi.GetEngineCompFactory().CreateTextNotifyClient(levelId)
-                comp.SetLeftCornerNotify("时间速率更新: {}x".format(newSpeed))
+                comp.SetLeftCornerNotify("§b时间速率更新: x{}".format(newSpeed))
             return self.SetRemove()
         self.getSlider().SetSliderValue(self.mSpeed / self.maxValue)
     
