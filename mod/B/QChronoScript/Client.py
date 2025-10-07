@@ -30,7 +30,9 @@ class ChronoEditUI(ScreenNodeWrapper):
         def onCloseBtnClick():
             newSpeed = self.getSliderValue()
             if newSpeed != self.mSpeed:
-                UPDATE_GAME_SPEED(self.getSliderValue())
+                UPDATE_GAME_SPEED(newSpeed)
+                comp = clientApi.GetEngineCompFactory().CreateTextNotifyClient(levelId)
+                comp.SetLeftCornerNotify("时间速率更新: {}x".format(newSpeed))
             return self.SetRemove()
         self.getSlider().SetSliderValue(self.mSpeed / self.maxValue)
     
