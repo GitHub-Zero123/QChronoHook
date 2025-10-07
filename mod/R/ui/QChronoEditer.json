@@ -1,0 +1,141 @@
+{
+    "main": {
+        "type": "screen",
+        "controls": [
+            {
+                "background": {
+                    "type": "image",
+                    "size": [
+                        "260%y+0px",
+                        "30%+0px"
+                    ],
+                    "layer": 1,
+                    "clip_direction": "left",
+                    "clip_ratio": 0.0,
+                    "texture": "textures/ui/effect_background",
+                    "controls": [
+                        {
+                            "close@common.button": {
+                                "type": "button",
+                                "$control_alpha": 1.0,
+                                "$default_texture": "",
+                                "$hover_texture": "",
+                                "$is_new_nine_slice": false,
+                                "$label_color": [
+                                    1,
+                                    1,
+                                    1
+                                ],
+                                "$label_font_scale_factor": 1.0,
+                                "$label_font_size": "normal",
+                                "$label_layer": 3,
+                                "$label_offset": [
+                                    0,
+                                    0
+                                ],
+                                "$label_text": "x",
+                                "$nine_slice_buttom": 0,
+                                "$nine_slice_left": 0,
+                                "$nine_slice_right": 0,
+                                "$nine_slice_top": 0,
+                                "$nineslice_size": [
+                                    0,
+                                    0,
+                                    0,
+                                    0
+                                ],
+                                "$pressed_button_name": "%netease_editor_template_namespace.click",
+                                "$pressed_texture": "",
+                                "$texture_layer": 2,
+                                "anchor_from": "top_right",
+                                "anchor_to": "left_middle",
+                                "size": [
+                                    "100%y+0px",
+                                    "18%+0px"
+                                ],
+                                "layer": 2,
+                                "button_mappings": [],
+                                "default_control": "default",
+                                "hover_control": "hover",
+                                "is_handle_button_move_event": true,
+                                "pressed_control": "pressed",
+                                "bindings": [
+                                    {
+                                        "binding_type": "collection_details",
+                                        "binding_collection_name": "",
+                                        "binding_condition": "always_when_visible"
+                                    }
+                                ],
+                                "controls": [
+                                    {
+                                        "default@netease_editor_template_namespace.default": {}
+                                    },
+                                    {
+                                        "hover@netease_editor_template_namespace.hover": {}
+                                    },
+                                    {
+                                        "pressed@netease_editor_template_namespace.pressed": {}
+                                    },
+                                    {
+                                        "button_label@netease_editor_template_namespace.button_label": {}
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "render": {
+                                "type": "label",
+                                "anchor_from": "top_middle",
+                                "anchor_to": "top_middle",
+                                "offset": [
+                                    0.0,
+                                    "10%+0px"
+                                ],
+                                "font_type": "default",
+                                "text": "当前速率: 1.0x",
+                                "text_alignment": "center"
+                            }
+                        },
+                        {
+                            "slider@common.slider": {
+                                "$background_default_control": "common.slider_background",
+                                "$background_hover_control": "common.slider_background_hover",
+                                "$progress_default_clip_direction": "left",
+                                "$progress_default_control": "common.slider_progress",
+                                "$progress_hover_clip_direction": "left",
+                                "$progress_hover_control": "common.slider_progress_hover",
+                                "$slider_box_hover_layout": "common.slider_button_hover_layout",
+                                "$slider_box_indent_layout": "common.slider_button_indent_layout",
+                                "$slider_box_layout": "common.slider_button_layout",
+                                "$slider_box_locked_layout": "common.slider_button_locked_layout",
+                                "$slider_box_size": [
+                                    12,
+                                    23
+                                ],
+                                "$slider_direction": "horizontal",
+                                "$slider_name|default": "netease_slider_name",
+                                "$slider_step_factory_control_ids": {
+                                    "slider_step": "@common.slider_step",
+                                    "slider_step_hover": "@common.slider_step_hover",
+                                    "slider_step_progress": "@common.slider_step_progress",
+                                    "slider_step_progress_hover": "@common.slider_step_progress_hover"
+                                },
+                                "$slider_tts_text_value": "#netease_tts_text_value",
+                                "layer": 10,
+                                "offset": [
+                                    0,
+                                    "4%+0px"
+                                ],
+                                "size": [
+                                    "85%+0px",
+                                    "8%x+0px"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "namespace": "QChronoEditer"
+}

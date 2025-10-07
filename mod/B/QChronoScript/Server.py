@@ -12,3 +12,7 @@ def ServerItemTryUseEvent(args={}):
             "OpenClockScreen",
             ChronoManager.getInstance().mSpeed
         )
+
+@AllowCall
+def UPDATE_GAME_SPEED(speed):
+    ChronoManager.getInstance().asyncSetSpeed(speed)
