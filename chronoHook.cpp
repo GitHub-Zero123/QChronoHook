@@ -19,6 +19,7 @@ using GTC_t = DWORD(WINAPI*)();
 using GSTAFT_t = VOID(WINAPI*)(LPFILETIME);
 using GSTPAFT_t = VOID(WINAPI*)(LPFILETIME);
 
+// 一些需要hook的原始函数指针
 static QPC_t fpQueryPerformanceCounter = nullptr;
 static GTC_t fpGetTickCount = nullptr;
 static GSTAFT_t fpGetSystemTimeAsFileTime = nullptr;
@@ -151,7 +152,7 @@ static std::atomic<bool> g_stop { false };
 
 // 共享内存消息循环通信
 static void sharedMemoryListener() {
-    float lastValue = 0.0f; // 与初始内存数据同步
+    float lastValue = 0.0f;
     HANDLE hMapFile = nullptr;
     float* pShared = nullptr;
 
@@ -160,7 +161,12 @@ static void sharedMemoryListener() {
             hMapFile = ::OpenFileMappingW(FILE_MAP_READ, FALSE, L"QuickChronoSpeed");
             if (hMapFile) {
                 pShared = (float*)::MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, sizeof(float));
-                if (pShared) lastValue = *pShared;
+                if (pShared) {
+                    lastValue = *pShared;
+                    if (lastValue > 0.001f) {
+                        setSpeedFactor(lastValue); // 处理第一次数据
+                    }
+                }
             }
             if (!hMapFile) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
