@@ -20,7 +20,7 @@ class ChronoEditUI(ScreenNodeWrapper):
         ScreenNodeWrapper.__init__(self, namespace, name, param)
         self.mSpeed = Static._SYNC_SPEED    # 拉取数据
         self.uiLoading = False
-        self.maxValue = 2.5
+        self.maxValue = 3.0
         self.cSpeed = -1.0
     
     def Create(self):

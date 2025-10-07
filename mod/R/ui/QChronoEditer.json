@@ -6,8 +6,12 @@
                 "background": {
                     "type": "image",
                     "size": [
-                        "260%y+0px",
+                        "320%y+0px",
                         "30%+0px"
+                    ],
+                    "max_size": [
+                        "90%+0px",
+                        "default"
                     ],
                     "layer": 1,
                     "clip_direction": "left",

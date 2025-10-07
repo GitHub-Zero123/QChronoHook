@@ -6,113 +6,140 @@
 #include <thread>
 #include <MinHook.h>
 
-// HOOK游戏进程时间函数，达到加速或减速的效果
-// 目前支持 QueryPerformanceCounter 和 GetTickCount
 #ifdef _DEBUG
 #define WTESTLOG(msg) \
-    do { \
-        std::wcout << msg << std::endl; \
-    } while (0)
+    do { std::wcout << msg << std::endl; } while (0)
 #else
 #define WTESTLOG(msg) \
-    do { \
-    } while (0)
+    do { } while (0)
 #endif
 
 using QPC_t = BOOL(WINAPI*)(LARGE_INTEGER*);
 using GTC_t = DWORD(WINAPI*)();
+using GSTAFT_t = VOID(WINAPI*)(LPFILETIME);
+using GSTPAFT_t = VOID(WINAPI*)(LPFILETIME);
 
-// 原始函数指针
 static QPC_t fpQueryPerformanceCounter = nullptr;
 static GTC_t fpGetTickCount = nullptr;
+static GSTAFT_t fpGetSystemTimeAsFileTime = nullptr;
+static GSTPAFT_t fpGetSystemTimePreciseAsFileTime = nullptr;
 
-// 同步与基址数据
 static std::mutex g_mutex;
 #ifdef NDEBUG
 static float g_factor = 1.0f;
 #else
-static float g_factor = 0.5f; // 调试模式下默认减速
+static float g_factor = 0.5f;
 #endif
-static std::atomic<bool> g_inited{false};
+static std::atomic<bool> g_inited{ false };
 
-// bases
 static LONGLONG real_qpc_base = 0;
 static LONGLONG virt_qpc_base = 0;
 static DWORD64 real_tick_base = 0;
 static DWORD64 virt_tick_base = 0;
 
-// Hook QueryPerformanceCounter
-BOOL WINAPI QueryPerformanceCounter_Hook(LARGE_INTEGER* lpPerformanceCount) {
-    // 调用原函数拿到真实时间
-    BOOL ok = fpQueryPerformanceCounter(lpPerformanceCount);
-    if (!ok) return ok;
+// Hook GetSystemTimeAsFileTime 影响获取系统时间的函数
+VOID WINAPI GetSystemTimeAsFileTime_Hook(LPFILETIME lpFileTime) {
+    fpGetSystemTimeAsFileTime(lpFileTime);
 
     std::lock_guard<std::mutex> lk(g_mutex);
+    if (!g_inited.load()) {
+        return;
+    }
 
+    ULONGLONG real_now = (((ULONGLONG)lpFileTime->dwHighDateTime) << 32) | lpFileTime->dwLowDateTime;
+    ULONGLONG delta = real_now - real_tick_base;
+    long double scaled = (long double)delta * g_factor;
+    ULONGLONG newVal = virt_tick_base + (ULONGLONG)scaled;
+
+    lpFileTime->dwLowDateTime = (DWORD)newVal;
+    lpFileTime->dwHighDateTime = (DWORD)(newVal >> 32);
+}
+
+// Hook GetSystemTimePreciseAsFileTime 影响获取系统时间的函数
+VOID WINAPI GetSystemTimePreciseAsFileTime_Hook(LPFILETIME lpFileTime) {
+    fpGetSystemTimePreciseAsFileTime(lpFileTime);
+
+    std::lock_guard<std::mutex> lk(g_mutex);
+    if (!g_inited.load()) {
+        return;
+    }
+
+    ULONGLONG real_now = (((ULONGLONG)lpFileTime->dwHighDateTime) << 32) | lpFileTime->dwLowDateTime;
+    ULONGLONG delta = real_now - real_tick_base;
+    long double scaled = (long double)delta * g_factor;
+    ULONGLONG newVal = virt_tick_base + (ULONGLONG)scaled;
+
+    lpFileTime->dwLowDateTime = (DWORD)newVal;
+    lpFileTime->dwHighDateTime = (DWORD)(newVal >> 32);
+}
+
+// Hook QueryPerformanceCounter 影响高精度计时函数
+BOOL WINAPI QueryPerformanceCounter_Hook(LARGE_INTEGER* lpPerformanceCount) {
+    BOOL ok = fpQueryPerformanceCounter(lpPerformanceCount);
+    if (!ok) {
+        return ok;
+    }
+
+    std::lock_guard<std::mutex> lk(g_mutex);
     LONGLONG real_now = lpPerformanceCount->QuadPart;
     if (!g_inited.load()) {
-        // 第一次调用初始化基准
         real_qpc_base = real_now;
         virt_qpc_base = real_qpc_base;
-        // 尝试初始化 tick 基准，确保一致性
         LARGE_INTEGER liFreq;
         QueryPerformanceFrequency(&liFreq);
         g_inited.store(true);
     }
 
-    // 计算偏移并按 factor 缩放
     LONGLONG delta = real_now - real_qpc_base;
-    long double scaled = (long double)delta * static_cast<long double>(g_factor);
-    LONGLONG newVal = virt_qpc_base + (LONGLONG)scaled;
-    lpPerformanceCount->QuadPart = newVal;
+    long double scaled = (long double)delta * g_factor;
+    lpPerformanceCount->QuadPart = virt_qpc_base + (LONGLONG)scaled;
     return TRUE;
 }
 
-// Hook GetTickCount
+// Hook GetTickCount 影响获取系统启动后经过的毫秒数
 DWORD WINAPI GetTickCount_Hook() {
-    DWORD real_now = fpGetTickCount();
-    std::lock_guard<std::mutex> lk(g_mutex);
+    FILETIME ft;
+    fpGetSystemTimeAsFileTime(&ft);
 
+    std::lock_guard<std::mutex> lk(g_mutex);
     if (!g_inited.load()) {
-        // QueryPerformanceCounter 初始化 tick 基准
-        real_tick_base = real_now;
-        virt_tick_base = real_tick_base;
+        ULONGLONG init_filetime = (((ULONGLONG)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+        real_tick_base = init_filetime;
+        virt_tick_base = init_filetime;
         g_inited.store(true);
     }
 
-    DWORD64 delta = (DWORD64)real_now - real_tick_base;
-    long double scaled = (long double)delta * static_cast<long double>(g_factor);
-    DWORD64 newVal64 = virt_tick_base + (DWORD64)scaled;
-    // 截断回 32 位（GetTickCount 返回 DWORD）
-    return static_cast<DWORD>(newVal64 & 0xFFFFFFFFu);
+    ULONGLONG real_now_filetime = (((ULONGLONG)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+    ULONGLONG delta = real_now_filetime - real_tick_base;
+    long double scaled = (long double)delta * g_factor;
+    ULONGLONG newVal = virt_tick_base + (ULONGLONG)scaled;
+
+    return static_cast<DWORD>((newVal / 10000ULL) & 0xFFFFFFFFu);
 }
 
-// 更新速度因子
+// 设置时间流逝速度因子
 static void setSpeedFactor(float factor) {
     std::lock_guard<std::mutex> lk(g_mutex);
     if (factor <= 0.0f) {
+        // 不允许非正数
         return;
     }
 
     if (g_inited.load()) {
         LARGE_INTEGER li;
         fpQueryPerformanceCounter(&li);
-        LONGLONG now_real_qpc = li.QuadPart;
+        LONGLONG delta_qpc = li.QuadPart - real_qpc_base;
+        LONGLONG virt_now_qpc = virt_qpc_base + static_cast<LONGLONG>(delta_qpc * g_factor);
 
-        // 计算当前虚拟时间（推进到此刻）
-        LONGLONG delta_qpc = now_real_qpc - real_qpc_base;
-        LONGLONG virt_now_qpc = virt_qpc_base + static_cast<LONGLONG>((long double)delta_qpc * g_factor);
+        FILETIME ft;
+        fpGetSystemTimeAsFileTime(&ft);
+        ULONGLONG delta_ft = (((ULONGLONG)ft.dwHighDateTime) << 32 | ft.dwLowDateTime) - real_tick_base;
+        ULONGLONG virt_now_filetime = virt_tick_base + static_cast<ULONGLONG>(delta_ft * g_factor);
 
-        // 同理处理 GetTickCount
-        DWORD now_real_tick = fpGetTickCount();
-        DWORD64 delta_tick = (DWORD64)now_real_tick - real_tick_base;
-        DWORD64 virt_now_tick = virt_tick_base + static_cast<DWORD64>((long double)delta_tick * g_factor);
-
-        // 更新基准
-        real_qpc_base = now_real_qpc;
+        real_qpc_base = li.QuadPart;
         virt_qpc_base = virt_now_qpc;
-        real_tick_base = now_real_tick;
-        virt_tick_base = virt_now_tick;
+        real_tick_base = (((ULONGLONG)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+        virt_tick_base = virt_now_filetime;
     }
 
     g_factor = factor;
@@ -120,71 +147,37 @@ static void setSpeedFactor(float factor) {
 }
 
 static std::thread* _listener = nullptr;
-static std::atomic<bool> g_stop{false};
+static std::atomic<bool> g_stop { false };
 
-// 共享内存数据监听循环逻辑
+// 共享内存消息循环通信
 static void sharedMemoryListener() {
-    float lastValue = 0.0f;
+    float lastValue = 0.0f; // 与初始内存数据同步
     HANDLE hMapFile = nullptr;
     float* pShared = nullptr;
 
     while (!g_stop.load()) {
-        // 如果还没有映射，尝试连接
         if (!hMapFile) {
             hMapFile = ::OpenFileMappingW(FILE_MAP_READ, FALSE, L"QuickChronoSpeed");
             if (hMapFile) {
                 pShared = (float*)::MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, sizeof(float));
-                if (pShared) {
-                    lastValue = *pShared;
-                    setSpeedFactor(lastValue);
-                    // OutputDebugStringW(L"[speedhack] connected to shared memory.\n");
-                    WTESTLOG(L"[speedhack] connected to shared memory, initial speed factor: " << lastValue);
-                } else {
-                    ::CloseHandle(hMapFile);
-                    hMapFile = nullptr;
-                }
+                if (pShared) lastValue = *pShared;
             }
-
-            // 如果还没连接上，共享内存可能还没创建，稍后重试
             if (!hMapFile) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                // std::cout << "[speedhack] waiting for shared memory code: " << GetLastError() << "\n";
-                WTESTLOG(L"[speedhack] waiting for shared memory code: " << GetLastError());
                 continue;
             }
         }
-
-        // 检查共享内存数据
+        // 读取共享内存数据同步写入
         float current = *pShared;
         if (current != lastValue) {
             lastValue = current;
-            if(current > 0.001f) {
+            if (current > 0.001f) {
                 setSpeedFactor(current);
-                // std::cout << "[speedhack] set speed factor: " << current << "\n";
-                WTESTLOG(L"[speedhack] set speed factor: " << current);
             }
         }
-
-        // 稍作休眠（减少 CPU 占用）
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-        // // 检查共享内存是否被关闭（主程序退出）
-        // if (WaitForSingleObject(hMapFile, 0) == WAIT_ABANDONED) {
-        //     OutputDebugStringW(L"[speedhack] shared memory closed, will retry.\n");
-        //     ::UnmapViewOfFile(pShared);
-        //     ::CloseHandle(hMapFile);
-        //     hMapFile = nullptr;
-        //     pShared = nullptr;
-        //     std::this_thread::sleep_for(std::chrono::seconds(1));
-        //     std::cout << "[speedhack] retrying to connect shared memory...\n";
-        // }
-        if (!pShared || !hMapFile) {
-            // 重新连接
-            continue;
-        }
     }
 
-    // 清理资源
     if (pShared) {
         ::UnmapViewOfFile(pShared);
     }
@@ -193,74 +186,52 @@ static void sharedMemoryListener() {
     }
 }
 
-// 初始化钩子（在 testDllInit 中调用）
 extern "C" __declspec(dllexport) DWORD WINAPI _chronoHookInit(LPVOID) {
     if (g_inited.load()) {
-        // OutputDebugStringW(L"[speedhack] already initialized\n");
-        WTESTLOG(L"[speedhack] already initialized");
         return 1;
     }
 
     if (MH_Initialize() != MH_OK) {
-        // OutputDebugStringW(L"[speedhack] MH_Initialize failed\n");
-        WTESTLOG(L"[speedhack] MH_Initialize failed");
         return 1;
     }
 
-    // 获取原函数地址
-    fpQueryPerformanceCounter = reinterpret_cast<QPC_t>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "QueryPerformanceCounter"));
-    fpGetTickCount = reinterpret_cast<GTC_t>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetTickCount"));
+    auto kernel32 = GetModuleHandleW(L"kernel32.dll");
+    // 获取kernel32时间相关的函数地址
+    fpQueryPerformanceCounter = reinterpret_cast<QPC_t>(GetProcAddress(kernel32, "QueryPerformanceCounter"));
+    fpGetTickCount = reinterpret_cast<GTC_t>(GetProcAddress(kernel32, "GetTickCount"));
+    fpGetSystemTimeAsFileTime = reinterpret_cast<GSTAFT_t>(GetProcAddress(kernel32, "GetSystemTimeAsFileTime"));
+    fpGetSystemTimePreciseAsFileTime = reinterpret_cast<GSTPAFT_t>(GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime"));
 
-    if (!fpQueryPerformanceCounter || !fpGetTickCount) {
-        // OutputDebugStringW(L"[speedhack] failed to get original function addresses\n");
-        WTESTLOG(L"[speedhack] failed to get original function addresses");
+    if (!fpQueryPerformanceCounter || !fpGetTickCount || !fpGetSystemTimeAsFileTime || !fpGetSystemTimePreciseAsFileTime) {
         MH_Uninitialize();
         return 1;
     }
 
     // 创建钩子
-    if (MH_CreateHook(reinterpret_cast<LPVOID>(fpQueryPerformanceCounter),
-                      reinterpret_cast<LPVOID>(QueryPerformanceCounter_Hook),
-                      reinterpret_cast<LPVOID*>(&fpQueryPerformanceCounter)) != MH_OK) {
-        // OutputDebugStringW(L"[speedhack] MH_CreateHook QueryPerformanceCounter failed\n");
-        WTESTLOG(L"[speedhack] MH_CreateHook QueryPerformanceCounter failed");
-        MH_Uninitialize();
-        return 1;
-    }
+    MH_CreateHook(fpQueryPerformanceCounter, QueryPerformanceCounter_Hook, reinterpret_cast<LPVOID*>(&fpQueryPerformanceCounter));
+    MH_CreateHook(fpGetTickCount, GetTickCount_Hook, reinterpret_cast<LPVOID*>(&fpGetTickCount));
+    MH_CreateHook(fpGetSystemTimeAsFileTime, GetSystemTimeAsFileTime_Hook, reinterpret_cast<LPVOID*>(&fpGetSystemTimeAsFileTime));
+    MH_CreateHook(fpGetSystemTimePreciseAsFileTime, GetSystemTimePreciseAsFileTime_Hook, reinterpret_cast<LPVOID*>(&fpGetSystemTimePreciseAsFileTime));
 
-    if (MH_CreateHook(reinterpret_cast<LPVOID>(fpGetTickCount),
-                      reinterpret_cast<LPVOID>(GetTickCount_Hook),
-                      reinterpret_cast<LPVOID*>(&fpGetTickCount)) != MH_OK) {
-        // OutputDebugStringW(L"[speedhack] MH_CreateHook GetTickCount failed\n");
-        WTESTLOG(L"[speedhack] MH_CreateHook GetTickCount failed");
-        MH_RemoveHook(reinterpret_cast<LPVOID>(fpQueryPerformanceCounter));
-        MH_Uninitialize();
-        return 1;
-    }
+    MH_EnableHook(MH_ALL_HOOKS);
 
-    // 启用 hooks
-    if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK) {
-        // OutputDebugStringW(L"[speedhack] MH_EnableHook failed\n");
-        WTESTLOG(L"[speedhack] MH_EnableHook failed");
-        MH_RemoveHook(reinterpret_cast<LPVOID>(fpQueryPerformanceCounter));
-        MH_RemoveHook(reinterpret_cast<LPVOID>(fpGetTickCount));
-        MH_Uninitialize();
-        return 1;
-    }
-
-    // 初始化 触发一个真实时间采样
     LARGE_INTEGER li;
     fpQueryPerformanceCounter(&li);
     {
+        // 初始化基准时间点
         std::lock_guard<std::mutex> lk(g_mutex);
         real_qpc_base = li.QuadPart;
         virt_qpc_base = real_qpc_base;
-        real_tick_base = fpGetTickCount();
-        virt_tick_base = real_tick_base;
+
+        FILETIME ftInit;
+        fpGetSystemTimeAsFileTime(&ftInit);
+        ULONGLONG init_filetime = (((ULONGLONG)ftInit.dwHighDateTime) << 32) | ftInit.dwLowDateTime;
+        real_tick_base = init_filetime;
+        virt_tick_base = init_filetime;
         g_inited.store(true);
     }
-
-    if(_listener == nullptr) {
+    if (!_listener) {
+        // 启动监听线程
         _listener = new std::thread(sharedMemoryListener);
     }
     return 0;
@@ -269,25 +240,25 @@ extern "C" __declspec(dllexport) DWORD WINAPI _chronoHookInit(LPVOID) {
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
     switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH:
+        DisableThreadLibraryCalls(hModule); // 减少 DLL_THREAD_ATTACH/DETACH 调用
         break;
     case DLL_PROCESS_DETACH:
-        // 移除钩子
-        if (g_inited.load()) {
-            MH_DisableHook(MH_ALL_HOOKS);
-            MH_RemoveHook(reinterpret_cast<LPVOID>(QueryPerformanceCounter_Hook));
-            MH_RemoveHook(reinterpret_cast<LPVOID>(GetTickCount_Hook));
-            MH_Uninitialize();
-            // OutputDebugStringW(L"[speedhack] hooks removed on detach\n");
-            WTESTLOG(L"[speedhack] hooks removed on detach");
-        }
         g_stop.store(true);
-        if(_listener == nullptr) {
-            // 安全退出监听线程
-            if(_listener->joinable()) {
+        if (_listener) {
+            // 安全的回收listener线程
+            if (_listener->joinable()) {
                 _listener->join();
             }
             delete _listener;
             _listener = nullptr;
+        }
+        if (g_inited.load()) {
+            MH_DisableHook(MH_ALL_HOOKS);
+            MH_RemoveHook(fpQueryPerformanceCounter);
+            MH_RemoveHook(fpGetTickCount);
+            MH_RemoveHook(fpGetSystemTimeAsFileTime);
+            MH_RemoveHook(fpGetSystemTimePreciseAsFileTime);
+            MH_Uninitialize();
         }
         break;
     }
