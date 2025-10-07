@@ -76,8 +76,12 @@ static bool WriteSpeedToSharedMemory(float speed) {
         // 注册进程退出时自动清理的回调
         static struct Cleaner {
             ~Cleaner() {
-                if (pShared) ::UnmapViewOfFile(pShared);
-                if (hMapFile) ::CloseHandle(hMapFile);
+                if (pShared) {
+                    ::UnmapViewOfFile(pShared);
+                }
+                if (hMapFile) {
+                    ::CloseHandle(hMapFile);
+                }
             }
         } cleaner;
     }
@@ -114,7 +118,7 @@ int main(int argc, char** argv) {
         autoFindMinecraftPid(pid);
     }
     dllInject(pid);
-    // 建立IPC消息循环
+    // 建立IPC消息循环，提供给Python端调用
     while(1) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         if(!PyIPC::checkParentProcessAliveFromArgs(argc, argv)) {
@@ -124,7 +128,7 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
-    // 尝试循环更新速度
+    // 测试循环更新速度
     // while(1) {
     //     std::this_thread::sleep_for(std::chrono::milliseconds(1500));
     //     // 生成0.1-2.0的随机速度
