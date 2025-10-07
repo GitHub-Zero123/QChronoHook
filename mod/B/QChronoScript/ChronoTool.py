@@ -22,7 +22,8 @@ class ChronoManager:
             return False
         return self.mIpc.start()
 
-    def setSpeed(self, speed: float):
+    def setSpeed(self, speed):
+        # type: (float) -> bool
         """ 同步设置游戏速度 """
         if speed < 0.0:
             return False
@@ -31,9 +32,11 @@ class ChronoManager:
         self.mSpeed = speed
         self.startIPC()
         self.mIpc.get("set_game_speed", {"value": float(speed)})
+        return True
 
-    def asyncSetSpeed(self, speed: float):
+    def asyncSetSpeed(self, speed):
         """ 异步设置游戏速度 """
+        # type: (float) -> bool
         if speed < 0.0:
             return False
         if self.mSpeed == speed:
@@ -41,6 +44,7 @@ class ChronoManager:
         self.mSpeed = speed
         self.startIPC()
         self.mIpc.request("set_game_speed", {"value": float(speed)})
+        return True
 
     def closeHook(self):
         """ 安全关闭 """
