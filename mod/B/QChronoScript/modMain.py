@@ -12,7 +12,7 @@ def initServer():
     def destroy():
         ChronoManager.getInstance().closeHook()
 
-@REG_CLIENT_MODULE
+@REG_CLIENT_INIT_CALL
 def initClient():
     from .QuModLibs.Client import regModLoadFinishHandler
     @regModLoadFinishHandler
