@@ -24,7 +24,7 @@ class ChronoEditUI(ScreenNodeWrapper):
         self.uiLoading = False
         self.maxValue = 3.0
         self.cSpeed = -1.0
-    
+
     def Create(self):
         ScreenNodeWrapper.Create(self)
         self.uiLoading = True
