@@ -20,6 +20,7 @@ class ChronoManager:
     def startIPC(self):
         if self.ipcState:
             return False
+        self.ipcState = True
         return self.mIpc.start()
 
     def setSpeed(self, speed):
@@ -50,7 +51,11 @@ class ChronoManager:
         """ 安全关闭 """
         if not self.ipcState:
             return False
-        self.setSpeed(1.0)  # 恢复默认游戏速度
-        self.mIpc.stop()
         self.ipcState = False
+        # self.mIpc.get("safe_close", timeout=5.0)
+        if self.mIpc.isProcAlive():
+            # print("安全关闭时间速率MOD进程...")
+            # self.mIpc.get("safe_close", timeout=5.0) # 由CPP自己安全关闭进程
+            self.mIpc.get("set_game_speed", {"value": 1.0}, timeout=5.0)
+            self.mIpc.stop()
         return True

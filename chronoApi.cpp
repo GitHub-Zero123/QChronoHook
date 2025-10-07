@@ -109,6 +109,12 @@ PY_IPC_REGISTER_HANDLER("set_game_speed", [](const PyIPC::json& data, PyIPC::jso
     }
 });
 
+PY_IPC_REGISTER_HANDLER("safe_close", [](const PyIPC::json& data, PyIPC::json& result) {
+    WriteSpeedToSharedMemory(1.0f); // 关闭前恢复默认速度
+    result["status"] = "success";
+    std::exit(0); // 直接退出进程
+});
+
 int main(int argc, char** argv) {
     uint64_t pid = 0;
     if(argc >= 2) {

@@ -8,16 +8,20 @@ chronoMod = EasyMod()
 @REG_SERVER_INIT_CALL
 def initServer():
     from .QuModLibs.Server import DestroyFunc
+    insatnce = ChronoManager.getInstance()
     @DestroyFunc
     def onDestroy():
-        ChronoManager.getInstance().closeHook()
+        insatnce.closeHook()
+    insatnce.startIPC()
 
 @REG_CLIENT_INIT_CALL
 def initClient():
     from .QuModLibs.Client import DestroyFunc
+    insatnce = ChronoManager.getInstance()
     @DestroyFunc
     def onDestroy():
-        ChronoManager.getInstance().closeHook()
+        insatnce.closeHook()
+    insatnce.startIPC()
 
 # 注册端侧逻辑模块
 chronoMod.Server("Server") \

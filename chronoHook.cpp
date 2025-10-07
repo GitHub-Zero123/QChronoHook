@@ -8,6 +8,16 @@
 
 // HOOK游戏进程时间函数，达到加速或减速的效果
 // 目前支持 QueryPerformanceCounter 和 GetTickCount
+#ifdef _DEBUG
+#define WTESTLOG(msg) \
+    do { \
+        std::wcout << msg << std::endl; \
+    } while (0)
+#else
+#define WTESTLOG(msg) \
+    do { \
+    } while (0)
+#endif
 
 using QPC_t = BOOL(WINAPI*)(LARGE_INTEGER*);
 using GTC_t = DWORD(WINAPI*)();
@@ -106,7 +116,7 @@ static void setSpeedFactor(float factor) {
     }
 
     g_factor = factor;
-    OutputDebugStringW(L"[speedhack] speed factor updated\n");
+    WTESTLOG(L"[speedhack] speed factor updated to " << factor);
 }
 
 static std::thread* _listener = nullptr;
@@ -127,7 +137,8 @@ static void sharedMemoryListener() {
                 if (pShared) {
                     lastValue = *pShared;
                     setSpeedFactor(lastValue);
-                    OutputDebugStringW(L"[speedhack] connected to shared memory.\n");
+                    // OutputDebugStringW(L"[speedhack] connected to shared memory.\n");
+                    WTESTLOG(L"[speedhack] connected to shared memory, initial speed factor: " << lastValue);
                 } else {
                     ::CloseHandle(hMapFile);
                     hMapFile = nullptr;
@@ -137,7 +148,8 @@ static void sharedMemoryListener() {
             // 如果还没连接上，共享内存可能还没创建，稍后重试
             if (!hMapFile) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                std::cout << "[speedhack] waiting for shared memory code: " << GetLastError() << "\n";
+                // std::cout << "[speedhack] waiting for shared memory code: " << GetLastError() << "\n";
+                WTESTLOG(L"[speedhack] waiting for shared memory code: " << GetLastError());
                 continue;
             }
         }
@@ -148,7 +160,8 @@ static void sharedMemoryListener() {
             lastValue = current;
             if(current > 0.001f) {
                 setSpeedFactor(current);
-                std::cout << "[speedhack] set speed factor: " << current << "\n";
+                // std::cout << "[speedhack] set speed factor: " << current << "\n";
+                WTESTLOG(L"[speedhack] set speed factor: " << current);
             }
         }
 
@@ -183,12 +196,14 @@ static void sharedMemoryListener() {
 // 初始化钩子（在 testDllInit 中调用）
 extern "C" __declspec(dllexport) DWORD WINAPI _chronoHookInit(LPVOID) {
     if (g_inited.load()) {
-        OutputDebugStringW(L"[speedhack] already initialized\n");
+        // OutputDebugStringW(L"[speedhack] already initialized\n");
+        WTESTLOG(L"[speedhack] already initialized");
         return 1;
     }
 
     if (MH_Initialize() != MH_OK) {
-        OutputDebugStringW(L"[speedhack] MH_Initialize failed\n");
+        // OutputDebugStringW(L"[speedhack] MH_Initialize failed\n");
+        WTESTLOG(L"[speedhack] MH_Initialize failed");
         return 1;
     }
 
@@ -197,7 +212,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI _chronoHookInit(LPVOID) {
     fpGetTickCount = reinterpret_cast<GTC_t>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetTickCount"));
 
     if (!fpQueryPerformanceCounter || !fpGetTickCount) {
-        OutputDebugStringW(L"[speedhack] failed to get original function addresses\n");
+        // OutputDebugStringW(L"[speedhack] failed to get original function addresses\n");
+        WTESTLOG(L"[speedhack] failed to get original function addresses");
         MH_Uninitialize();
         return 1;
     }
@@ -206,7 +222,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI _chronoHookInit(LPVOID) {
     if (MH_CreateHook(reinterpret_cast<LPVOID>(fpQueryPerformanceCounter),
                       reinterpret_cast<LPVOID>(QueryPerformanceCounter_Hook),
                       reinterpret_cast<LPVOID*>(&fpQueryPerformanceCounter)) != MH_OK) {
-        OutputDebugStringW(L"[speedhack] MH_CreateHook QueryPerformanceCounter failed\n");
+        // OutputDebugStringW(L"[speedhack] MH_CreateHook QueryPerformanceCounter failed\n");
+        WTESTLOG(L"[speedhack] MH_CreateHook QueryPerformanceCounter failed");
         MH_Uninitialize();
         return 1;
     }
@@ -214,7 +231,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI _chronoHookInit(LPVOID) {
     if (MH_CreateHook(reinterpret_cast<LPVOID>(fpGetTickCount),
                       reinterpret_cast<LPVOID>(GetTickCount_Hook),
                       reinterpret_cast<LPVOID*>(&fpGetTickCount)) != MH_OK) {
-        OutputDebugStringW(L"[speedhack] MH_CreateHook GetTickCount failed\n");
+        // OutputDebugStringW(L"[speedhack] MH_CreateHook GetTickCount failed\n");
+        WTESTLOG(L"[speedhack] MH_CreateHook GetTickCount failed");
         MH_RemoveHook(reinterpret_cast<LPVOID>(fpQueryPerformanceCounter));
         MH_Uninitialize();
         return 1;
@@ -222,7 +240,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI _chronoHookInit(LPVOID) {
 
     // 启用 hooks
     if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK) {
-        OutputDebugStringW(L"[speedhack] MH_EnableHook failed\n");
+        // OutputDebugStringW(L"[speedhack] MH_EnableHook failed\n");
+        WTESTLOG(L"[speedhack] MH_EnableHook failed");
         MH_RemoveHook(reinterpret_cast<LPVOID>(fpQueryPerformanceCounter));
         MH_RemoveHook(reinterpret_cast<LPVOID>(fpGetTickCount));
         MH_Uninitialize();
@@ -258,7 +277,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
             MH_RemoveHook(reinterpret_cast<LPVOID>(QueryPerformanceCounter_Hook));
             MH_RemoveHook(reinterpret_cast<LPVOID>(GetTickCount_Hook));
             MH_Uninitialize();
-            OutputDebugStringW(L"[speedhack] hooks removed on detach\n");
+            // OutputDebugStringW(L"[speedhack] hooks removed on detach\n");
+            WTESTLOG(L"[speedhack] hooks removed on detach");
         }
         g_stop.store(true);
         if(_listener == nullptr) {
