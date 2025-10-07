@@ -3,6 +3,7 @@ from .QuModLibs.Client import *
 
 class Static:
     _UI_INITED = False
+    _SYNC_SPEED = 1.0
 
 @Listen("UiInitFinished")
 def UiInitFinished(_={}):
@@ -14,4 +15,5 @@ def UiInitFinished(_={}):
 
 @AllowCall
 def OpenClockScreen(speed):
-    print(speed)
+    # 同步服务端的新时间速度数据
+    Static._SYNC_SPEED = speed
