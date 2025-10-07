@@ -31,7 +31,7 @@ class ChronoManager:
             return False
         self.mSpeed = speed
         self.startIPC()
-        self.mIpc.get("set_game_speed", {"value": float(speed)})
+        self.mIpc.get("set_game_speed", {"value": float(speed)}, timeout=5.0)
         return True
 
     def asyncSetSpeed(self, speed):
