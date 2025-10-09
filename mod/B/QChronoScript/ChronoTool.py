@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from .IPC.McTools import FIND_BEH_FILE
 from .IPC.qpyipc import PyIPC
+import time as pytime
+from time import time
 lambda: "By Zero123 仅供参考，请勿用于非法用途"
 
 class ChronoManager:
@@ -16,6 +18,15 @@ class ChronoManager:
         self.mSpeed = 1.0
         self.ipcState = False
         self.mIpc = PyIPC(FIND_BEH_FILE("bins/chronoApi.exe"))
+        # 虚拟时间系统初始化
+        self._realStart = time()                # 记录真实时间起点
+        self._virtualStart = self._realStart    # 记录虚拟时间起点
+
+    def _updateVirtualTime(self):
+        """ 更新虚拟时间 """
+        nowReal = time()
+        self._virtualStart = self.mTimeRaw(nowReal)
+        self._realStart = nowReal
 
     def startIPC(self):
         if self.ipcState:
@@ -30,6 +41,7 @@ class ChronoManager:
             return False
         if self.mSpeed == speed:
             return False
+        self._updateVirtualTime()
         self.mSpeed = speed
         self.startIPC()
         self.mIpc.get("set_game_speed", {"value": float(speed)}, timeout=5.0)
@@ -42,6 +54,7 @@ class ChronoManager:
             return False
         if self.mSpeed == speed:
             return False
+        self._updateVirtualTime()
         self.mSpeed = speed
         self.startIPC()
         self.mIpc.request("set_game_speed", {"value": float(speed)})
@@ -58,4 +71,28 @@ class ChronoManager:
             # self.mIpc.get("safe_close", timeout=5.0) # 由CPP自己安全关闭进程
             self.mIpc.get("set_game_speed", {"value": 1.0}, timeout=5.0)
             self.mIpc.stop()
+        self._updateVirtualTime()
+        self.mSpeed = 1.0
         return True
+
+    def mTimeRaw(self, nowReal=None):
+        """根据真实时间计算虚拟时间"""
+        if nowReal is None:
+            nowReal = time()
+        return self._virtualStart + (nowReal - self._realStart) * self.mSpeed
+
+    def mTime(self):
+        """替代 time.time 的函数"""
+        return self.mTimeRaw()
+
+    def hookPyTime(self):
+        if pytime.time == self.mTime:
+            return False
+        pytime.time = self.mTime
+        return True
+
+    def restHookPyTime(self):
+        if pytime.time == self.mTime:
+            pytime.time = time
+            return True
+        return False
