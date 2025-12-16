@@ -1,0 +1,24 @@
+{
+    "auto_join_game": true,
+    "enable_cheats": true,
+    "game_executable_path": "D:/MCStudioDownload/game/MinecraftPE_Netease/3.6.0.159311/Minecraft.Windows.exe",
+    "game_mode": 1,
+    "include_debug_mod": true,
+    "included_mod_dirs": [
+        "./mod"
+    ],
+    "keep_inventory": true,
+    "reset_world": false,
+    "world_folder_name": "MC_DEV_WORLD",
+    "world_name": "MC_DEV_WORLD",
+    "world_seed": null,
+    "world_type": 1,
+    "debug_options": {
+        "reload_key": "",
+        "reload_world_key": "",
+        "reload_addon_key": "",
+        "reload_shaders_key": "",
+        "reload_key_global": false
+    },
+    "auto_hot_reload_mods": true
+}
